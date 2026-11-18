@@ -5,6 +5,9 @@ import json
 import math
 import random
 import zipfile
+import sqlite3
+import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
@@ -50,8 +53,11 @@ BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 IMAGE_DIR = DATA_DIR / "ISIC_2019_Training_Input"
 MODEL_DIR = BASE_DIR / "models"
+MANUAL_IMAGE_DIR = DATA_DIR / "manual_uploads"
+MANUAL_DB = DATA_DIR / "manual_records.db"
 DATA_DIR.mkdir(exist_ok=True)
 MODEL_DIR.mkdir(exist_ok=True)
+MANUAL_IMAGE_DIR.mkdir(exist_ok=True)
 
 CLASS_NAMES = {
     "MEL": "Melanoma",
@@ -69,16 +75,19 @@ st.markdown("""
 :root { --navy:#092E3A; --deep:#073B42; --teal:#079B8B; --mint:#DDF5F1; --ink:#142C40; --muted:#71838D; }
 html, body, [class*="css"] { font-family:'DM Sans',sans-serif; }
 .stApp { background:#F4F8FA; color:var(--ink); }
-.block-container {
-    max-width:1660px;
-    padding-top:3.5rem !important;
-    padding-bottom:2rem;
-}
-
-main .block-container {
-    padding-top:3.5rem !important;
-}
-[data-testid="stSidebar"] { background:linear-gradient(180deg,#063B42 0%,#052F39 100%); }
+.block-container { max-width:1660px; padding-top:3.5rem !important; padding-bottom:2rem; }
+/* Keep the page heading clear of Streamlit Cloud top toolbar */
+main .block-container { padding-top:3.5rem !important; }
+[data-testid="stSidebar"] { background:linear-gradient(180deg,#063B42 0%,#052F39 100%); min-width:350px !important; max-width:350px !important; }
+[data-testid="stSidebarContent"] { overflow-y:auto !important; }
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap:0.55rem; }
+.sidebar-input-card { background:rgba(12,105,108,.48); border:1px solid rgba(130,220,211,.18); border-radius:15px; padding:12px; margin:8px 0 12px; }
+.sidebar-section-title { font-family:Manrope,sans-serif;font-weight:800;font-size:17px;color:#F4FFFF;margin:0 0 2px; }
+.sidebar-hint { font-size:10px;color:#C3DDDC;margin-bottom:8px; }
+[data-testid="stSidebar"] [data-testid="stFileUploader"] { background:rgba(255,255,255,.06); border:1px dashed #80C7C3; padding:5px; }
+[data-testid="stSidebar"] [data-testid="stFileUploader"] section { padding:5px; }
+[data-testid="stSidebar"] input, [data-testid="stSidebar"] [data-baseweb="select"] > div { background:#F5FBFB !important; color:#183B42 !important; border-radius:8px !important; }
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] label, [data-testid="stSidebar"] label { font-size:11px !important; }
 [data-testid="stSidebar"] * { color:#F2FAFA !important; }
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color:#C3D8D9 !important; }
 [data-testid="stSidebar"] div[role="radiogroup"] label { background:transparent; border-radius:11px; padding:8px 10px; margin:3px 0; }
@@ -401,15 +410,134 @@ if TORCH_AVAILABLE:
         }
 
 # ============================================================
+# MANUAL DATA STORAGE
+# ============================================================
+def init_manual_db():
+    with sqlite3.connect(MANUAL_DB) as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS manual_records (
+            record_id TEXT PRIMARY KEY,
+            created_at TEXT NOT NULL,
+            image_path TEXT NOT NULL,
+            age INTEGER,
+            sex TEXT,
+            site TEXT,
+            diagnosis TEXT NOT NULL
+        )""")
+        conn.commit()
+
+
+def save_manual_record(uploaded_image, age, sex, site, diagnosis):
+    record_id = f"MANUAL_{uuid.uuid4().hex[:10].upper()}"
+    image = Image.open(uploaded_image).convert("RGB")
+    image_path = MANUAL_IMAGE_DIR / f"{record_id}.jpg"
+    image.save(image_path, format="JPEG", quality=92)
+    relative_path = str(image_path.relative_to(BASE_DIR))
+    with sqlite3.connect(MANUAL_DB) as conn:
+        conn.execute(
+            "INSERT INTO manual_records VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (record_id, datetime.now().isoformat(timespec="seconds"), relative_path,
+             age if age != "" else None, sex, site, diagnosis)
+        )
+        conn.commit()
+    return record_id
+
+
+def get_manual_record_count():
+    init_manual_db()
+    with sqlite3.connect(MANUAL_DB) as conn:
+        return conn.execute("SELECT COUNT(*) FROM manual_records").fetchone()[0]
+
+
+init_manual_db()
+
+# ============================================================
 # SIDEBAR
 # ============================================================
 with st.sidebar:
-    st.markdown('<div style="text-align:center;padding:8px 0 18px"><div class="brand"><span class="brand-mark">✚</span>DermaSense</div><div class="brand-sub">Skin Lesion Classification<br>(ISIC 2019)</div></div>', unsafe_allow_html=True)
-    page = st.radio("NAVIGATION", ["Dashboard", "Dataset", "Model CNN", "Model Multimodal", "Evaluation", "About"], label_visibility="collapsed")
-    st.markdown("---")
+    st.markdown('<div style="text-align:center;padding:8px 0 15px"><div class="brand"><span class="brand-mark">✚</span>DermaSense</div><div class="brand-sub">Skin Lesion Classification<br>(ISIC 2019)</div></div>', unsafe_allow_html=True)
+
+    nav_labels = {
+        "⌂  Dashboard": "Dashboard",
+        "▤  Dataset": "Dataset",
+        "⌘  Model CNN": "Model CNN",
+        "◈  Model Multimodal": "Model Multimodal",
+        "▥  Evaluation": "Evaluation",
+        "ⓘ  About": "About",
+    }
+    selected_nav = st.radio(
+        "NAVIGATION", list(nav_labels.keys()),
+        format_func=lambda x: x,
+        label_visibility="collapsed",
+        key="main_navigation"
+    )
+    page = nav_labels[selected_nav]
+
+    st.markdown("<div style='height:8px;border-bottom:1px solid rgba(180,225,222,.35);margin-bottom:10px'></div>", unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-input-card">', unsafe_allow_html=True)
+    st.markdown('<div style="display:flex;align-items:center;gap:9px"><span style="font-size:24px">▣</span><div><div class="sidebar-section-title">Input Data</div><div class="sidebar-hint">Tambah data baru (citra + metadata) ke dataset.</div></div></div>', unsafe_allow_html=True)
+
+    def reset_sidebar_fields():
+        for widget_key in ["sb_upload", "sb_age", "sb_sex", "sb_site", "sb_diagnosis"]:
+            st.session_state.pop(widget_key, None)
+
+    with st.form("sidebar_manual_input", clear_on_submit=True):
+        uploaded_lesion = st.file_uploader(
+            "Upload Citra Lesi *", type=["jpg", "jpeg", "png"],
+            help="Format JPG/JPEG/PNG, maksimal 10 MB.", key="sb_upload"
+        )
+        age_input = st.text_input("Usia (tahun)", placeholder="Contoh: 45", key="sb_age")
+        sex_input = st.selectbox("Jenis Kelamin", ["Pilih...", "Female", "Male"], key="sb_sex")
+        site_input = st.selectbox(
+            "Lokasi Anatomi", ["Pilih...", "Head/Neck", "Anterior torso", "Posterior torso",
+            "Lateral torso", "Upper extremity", "Lower extremity", "Palms/Soles", "Oral/Genital", "Other"],
+            key="sb_site"
+        )
+        diagnosis_input = st.selectbox(
+            "Diagnosis (Label) *", ["Pilih...", "MEL", "NV", "BCC"],
+            format_func=lambda x: "Pilih... (MEL / NV / BCC)" if x == "Pilih..." else f"{x} — {CLASS_NAMES[x]}",
+            key="sb_diagnosis"
+        )
+        save_manual = st.form_submit_button("＋  Simpan Data", type="primary", use_container_width=True)
+
+    st.button("↻  Reset Form", use_container_width=True, key="reset_sidebar_form", on_click=reset_sidebar_fields)
+
+    if save_manual:
+        validation_errors = []
+        if uploaded_lesion is None:
+            validation_errors.append("Pilih gambar lesi terlebih dahulu.")
+        if diagnosis_input == "Pilih...":
+            validation_errors.append("Pilih label diagnosis MEL, NV, atau BCC.")
+        if age_input.strip() and (not age_input.strip().isdigit() or not 0 <= int(age_input.strip()) <= 120):
+            validation_errors.append("Usia harus berupa angka 0–120.")
+        if uploaded_lesion is not None and uploaded_lesion.size > 10 * 1024 * 1024:
+            validation_errors.append("Ukuran gambar maksimal 10 MB.")
+        if validation_errors:
+            for err in validation_errors:
+                st.error(err)
+        else:
+            try:
+                new_id = save_manual_record(
+                    uploaded_lesion,
+                    int(age_input) if age_input.strip() else "",
+                    None if sex_input == "Pilih..." else sex_input,
+                    None if site_input == "Pilih..." else site_input,
+                    diagnosis_input,
+                )
+                st.success(f"Data tersimpan · {new_id}")
+            except Exception as exc:
+                st.error(f"Gagal menyimpan data: {exc}")
+
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<div style='height:8px;border-bottom:1px solid rgba(180,225,222,.35);margin-bottom:10px'></div>", unsafe_allow_html=True)
     st.markdown("**Dataset Aktif**")
-    st.markdown(f'<div style="background:#0B5960;border-radius:13px;padding:12px;font-size:12px;color:white">● {dataset_status()}<br><br>3 kelas: MEL · NV · BCC</div>', unsafe_allow_html=True)
-    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
+    manual_count = get_manual_record_count()
+    st.markdown(
+        f'<div style="background:#0B5960;border-radius:13px;padding:12px;font-size:12px;color:white">'
+        f'● {dataset_status()}<br><br>3 kelas: MEL · NV · BCC<br><br>'
+        f'Data input manual: {manual_count}</div>',
+        unsafe_allow_html=True
+    )
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
     st.caption("Research prototype · Bukan alat diagnosis klinis")
 
 # ============================================================
@@ -610,6 +738,14 @@ elif page == "Dataset":
             if query: view = view[view.image.str.contains(query,case=False,na=False)]
             st.caption(f"{len(view):,} record ditemukan.")
             st.dataframe(view.head(1000),use_container_width=True,hide_index=True)
+            st.markdown("### Data tambahan dari Input Data sidebar")
+            with sqlite3.connect(MANUAL_DB) as conn:
+                manual_df = pd.read_sql_query("SELECT record_id, created_at, age, sex, site, diagnosis FROM manual_records ORDER BY created_at DESC", conn)
+            if manual_df.empty:
+                st.caption("Belum ada data manual yang disimpan.")
+            else:
+                st.dataframe(manual_df, use_container_width=True, hide_index=True)
+                st.download_button("Download data manual (CSV)", manual_df.to_csv(index=False).encode("utf-8"), "dermasense_manual_records.csv", "text/csv")
             if len(view):
                 selected = st.selectbox("Pilih gambar untuk preview",view.image.tolist()[:2000])
                 im = load_image(selected,st.session_state.image_dir)
