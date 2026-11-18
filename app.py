@@ -69,7 +69,15 @@ st.markdown("""
 :root { --navy:#092E3A; --deep:#073B42; --teal:#079B8B; --mint:#DDF5F1; --ink:#142C40; --muted:#71838D; }
 html, body, [class*="css"] { font-family:'DM Sans',sans-serif; }
 .stApp { background:#F4F8FA; color:var(--ink); }
-.block-container { max-width:1660px; padding-top:1.05rem; padding-bottom:2rem; }
+.block-container {
+    max-width:1660px;
+    padding-top:3.5rem !important;
+    padding-bottom:2rem;
+}
+
+main .block-container {
+    padding-top:3.5rem !important;
+}
 [data-testid="stSidebar"] { background:linear-gradient(180deg,#063B42 0%,#052F39 100%); }
 [data-testid="stSidebar"] * { color:#F2FAFA !important; }
 [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p { color:#C3D8D9 !important; }
