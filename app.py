@@ -25,8 +25,12 @@ try:
     from torch.utils.data import Dataset, DataLoader
     from torchvision import models, transforms
     TORCH_AVAILABLE = True
+    import multimodal_lstm as mm_lstm
+    MULTIMODAL_LSTM_AVAILABLE = True
+
 except Exception:
     TORCH_AVAILABLE = False
+    MULTIMODAL_LSTM_AVAILABLE = False
 
 try:
     from sklearn.model_selection import train_test_split
@@ -126,7 +130,9 @@ DEFAULTS = {
     "gt": None, "meta": None, "data_df": None, "image_dir": str(IMAGE_DIR),
     "trained_model": None, "training_history": None, "eval_result": None,
     "model_status": "Belum dilatih", "last_model_path": None,
-    "split_df": None,
+    "split_df": None, "mm_model": None,
+    "mm_prep": None, "mm_history": None, "mm_eval_result": None, "mm_status": "Belum dilatih",
+    "mm_model_path": None, "mm_missing_rate": 0,
 }
 for k, v in DEFAULTS.items():
     if k not in st.session_state:
@@ -874,24 +880,109 @@ elif page == "Model CNN":
 # MODEL MULTIMODAL
 # ============================================================
 elif page == "Model Multimodal":
-    page_header("Model Multimodal", "Rancangan penggabungan fitur citra EfficientNet-B0 dan metadata klinis.", "▱")
-    st.markdown('<div class="panel"><div class="panel-title">Arsitektur Multimodal</div>',unsafe_allow_html=True)
-    a,b,c = st.columns(3)
-    with a:
-        st.markdown("#### Image Branch")
-        st.info("Input RGB → EfficientNet-B0 → Global Average Pooling → Image Features")
-    with b:
-        st.markdown("#### Metadata Branch")
-        st.info("Age + Sex + Anatomical Site → Imputation + Encoding + Missing Mask → MLP")
-    with c:
-        st.markdown("#### Fusion & Output")
-        st.success("Mask-aware Fusion → Dense → Softmax → MEL / NV / BCC")
-    st.markdown("</div>",unsafe_allow_html=True)
-    st.warning("Halaman ini merupakan rancangan arsitektur. Training multimodal belum diimplementasikan pada prototype CNN ini; jangan menganggap hasilnya sudah tersedia.")
-    rate = st.radio("Simulasi missing metadata", [0,25,50,75,100],
-                    format_func=lambda x:"Complete (0%)" if x==0 else ("Image only (100%)" if x==100 else f"{x}% missing"),
-                    horizontal=True)
-    st.caption(f"Skenario eksperimen terpilih: {rate}% nilai metadata dimasking.")
+    page_header("Model Multimodal (Hybrid CNN-BiLSTM)", "Training dan simulasi missing metadata untuk klasifikasi MEL, NV, dan BCC.", "▱")
+    if not (TORCH_AVAILABLE and MULTIMODAL_LSTM_AVAILABLE):
+        st.error("PyTorch atau modul multimodal_lstm belum tersedia.")
+    df = st.session_state.data_df
+    if df is None:
+        st.warning("Muat dataset ISIC 2019 terlebih dahulu melalui menu Dataset.")
+    else:
+        c1, c2 = st.columns([1.1, 1])
+        with c1:
+            st.markdown('<div class="panel"><div class="panel-title">Konfigurasi Hybrid CNN-BiLSTM + Metadata</div>', unsafe_allow_html=True)
+            mm_epochs = st.number_input("Epochs", min_value=1, max_value=100, value=10, step=1, key="mm_epochs")
+            mm_batch = st.selectbox("Batch Size", [8, 16, 32], index=1, key="mm_batch")
+            mm_lr = st.select_slider(
+                "Learning Rate",
+                options=[0.00001, 0.00005, 0.0001, 0.0005, 0.001],
+                value=0.0001,
+                format_func=lambda x: f"{x:g}",
+                key="mm_lr",
+            )
+            mm_pretrained = st.checkbox("Gunakan pretrained ImageNet weights", value=True, key="mm_pretrained")
+            mm_seed = st.number_input("Random seed", min_value=1, max_value=9999, value=42, key="mm_seed")
+            mm_missing = st.radio(
+                "Simulasi missing metadata",
+                [0, 25, 50, 75, 100],
+                format_func=lambda x: "Complete (0%)" if x == 0 else ("Image only (100%)" if x == 100 else f"{x}% missing"),
+                horizontal=True,
+                key="mm_missing_radio",
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+        with c2:
+            st.markdown('<div class="panel"><div class="panel-title">Arsitektur Hybrid Multimodal</div>', unsafe_allow_html=True)
+            st.markdown("**Citra (224×224×3)** → **EfficientNet-B0** → **Urutan Fitur (7×7)** → **BiLSTM**")
+            st.markdown("↓")
+            st.markdown("**Metadata Klinis (Age, Sex, Site + Missing Mask)** → **MLP**")
+            st.markdown("↓")
+            st.markdown("**Concatenation Fusion → Dense → Softmax (MEL · NV · BCC)**")
+            st.markdown(f"**Status model:** `{st.session_state.mm_status}`")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        if st.session_state.split_df is None:
+            if st.button("Buat split otomatis 70/15/15", key="mm_make_split"):
+                st.session_state.split_df = make_splits(df, seed=int(mm_seed))
+                st.rerun()
+
+        split_df = st.session_state.split_df
+        if split_df is not None:
+            if st.button("▶ Train Hybrid CNN-BiLSTM Multimodal", type="primary", use_container_width=True):
+                if not SKLEARN_AVAILABLE:
+                    st.error("scikit-learn belum terpasang.")
+                else:
+                    try:
+                        random.seed(int(mm_seed))
+                        np.random.seed(int(mm_seed))
+                        torch.manual_seed(int(mm_seed))
+                        prog_bar = st.progress(0, text="Menyiapkan training multimodal...")
+
+                        def on_epoch(ep, total_ep, val_f1):
+                            prog_bar.progress(ep / total_ep, text=f"Epoch {ep}/{total_ep} · val Macro-F1 {val_f1:.4f}")
+
+                        mm_model, mm_prep, mm_hist, dev = mm_lstm.train_multimodal_hybrid(
+                            frame=split_df,
+                            image_dir=st.session_state.image_dir,
+                            epochs=int(mm_epochs),
+                            batch_size=int(mm_batch),
+                            lr=float(mm_lr),
+                            pretrained=mm_pretrained,
+                            missing_rate=int(mm_missing),
+                            progress_callback=on_epoch,
+                        )
+                        st.session_state.mm_model = mm_model
+                        st.session_state.mm_prep = mm_prep
+                        st.session_state.mm_history = mm_hist
+                        st.session_state.mm_missing_rate = int(mm_missing)
+                        st.session_state.mm_status = f"Training selesai ({dev})"
+
+                        save_path = MODEL_DIR / "dermasense_hybrid_cnn_bilstm.pth"
+                        torch.save({
+                            "state_dict": mm_model.state_dict(),
+                            "preprocessor": mm_prep,
+                            "classes": CLASS_ORDER,
+                        }, save_path)
+                        st.session_state.mm_model_path = str(save_path)
+                        st.success(f"Training Hybrid CNN-BiLSTM selesai pada {dev}. Best val Macro-F1: {mm_hist['val_macro_f1'].max():.4f}")
+                    except Exception as exc:
+                        st.error(f"Training multimodal gagal: {exc}")
+
+        if st.session_state.mm_history is not None:
+            hist = st.session_state.mm_history
+            st.markdown("### Training history (Hybrid CNN-BiLSTM)")
+            h1, h2 = st.columns(2)
+            with h1:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=hist["epoch"], y=hist["train_loss"], name="Train loss"))
+                fig.add_trace(go.Scatter(x=hist["epoch"], y=hist["val_loss"], name="Validation loss"))
+                fig.update_layout(title="Loss per epoch", height=300)
+                st.plotly_chart(fig, use_container_width=True)
+            with h2:
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=hist["epoch"], y=hist["train_accuracy"], name="Train accuracy"))
+                fig.add_trace(go.Scatter(x=hist["epoch"], y=hist["val_accuracy"], name="Validation accuracy"))
+                fig.update_layout(title="Accuracy per epoch", height=300, yaxis_range=[0, 1])
+                st.plotly_chart(fig, use_container_width=True)
+            st.dataframe(hist, use_container_width=True, hide_index=True)
 
 # ============================================================
 # EVALUATION
