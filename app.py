@@ -308,12 +308,13 @@ main .block-container {
 }
 
 .panel {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 16px 18px;
-    box-shadow: 0 4px 14px rgba(18, 55, 70, 0.04);
-    margin-bottom: 12px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    padding: 4px 0 6px;
+    box-shadow: none;
+    margin-bottom: 10px;
 }
 
 .panel-title {
@@ -476,6 +477,54 @@ div[data-testid="stDataFrame"] {
     letter-spacing: 0.4px;
     padding: 28px 0 8px;
 }
+
+/* ===== Perbaikan tampilan: area utama tetap terang walau tema browser gelap ===== */
+[data-testid="stHeader"] { background: var(--bg) !important; }
+[data-testid="stHeader"] * { color: #324B5A !important; }
+[data-testid="stMain"] label,
+[data-testid="stMain"] [data-testid="stWidgetLabel"] *,
+[data-testid="stMain"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stMain"] [data-testid="stCaptionContainer"] * { color: var(--ink) !important; }
+[data-testid="stMain"] input,
+[data-testid="stMain"] textarea,
+[data-testid="stMain"] [data-baseweb="select"] > div,
+[data-testid="stMain"] [data-baseweb="input"] > div {
+    background: #FFFFFF !important; color: var(--ink) !important; border-color: var(--border) !important;
+}
+[data-testid="stMain"] input:disabled { -webkit-text-fill-color: #7D8F99 !important; opacity: 1 !important; }
+[data-testid="stMain"] [data-baseweb="select"] * { color: var(--ink) !important; }
+[data-testid="stMain"] [data-testid="stFileUploaderDropzone"] {
+    background: #F6FAFB !important; border: 1px dashed #B5CBD3 !important;
+}
+[data-testid="stMain"] [data-testid="stFileUploaderDropzone"] * { color: var(--ink) !important; }
+[data-testid="stMain"] [data-testid="stFileUploaderDropzone"] small { color: var(--muted) !important; }
+[data-testid="stMain"] [data-testid="stFileUploaderDropzone"] button {
+    background: #FFFFFF !important; border: 1px solid var(--border) !important;
+}
+button[data-baseweb="tab"] { color: #4B6270 !important; }
+button[data-baseweb="tab"][aria-selected="true"] { color: var(--teal-dark) !important; }
+[data-baseweb="tab-highlight"] { background-color: var(--teal) !important; }
+button[data-testid="stBaseButton-primary"] {
+    background: var(--teal) !important; border-color: var(--teal) !important; color: #FFFFFF !important;
+}
+button[data-testid="stBaseButton-primary"]:hover { background: var(--teal-dark) !important; }
+[data-testid="stMain"] button[data-testid="stBaseButton-secondary"] {
+    background: #FFFFFF !important; color: var(--ink) !important; border: 1px solid var(--border) !important;
+}
+[data-testid="stMain"] [data-baseweb="radio"]:has(input:checked) > div:first-child {
+    background-color: var(--teal) !important; border-color: var(--teal) !important;
+}
+[data-testid="stMain"] [data-baseweb="radio"]:not(:has(input:checked)) > div:first-child {
+    background-color: #FFFFFF !important; border: 1.5px solid #9FB3BD !important;
+}
+[data-testid="stMain"] [data-testid="stAlert"] {
+    background: #EAF3F5 !important; border: 1px solid #CFE2E7 !important;
+    border-left: 4px solid var(--teal) !important; border-radius: 10px !important;
+}
+[data-testid="stMain"] [data-testid="stAlert"] * { color: var(--ink) !important; }
+[data-testid="stSidebar"] [data-baseweb="radio"] > div:first-child { display: none !important; }
+[data-testid="stSidebar"] [data-baseweb="radio"] { width: 100%; border-radius: 10px; padding: 9px 12px; }
+[data-testid="stSidebar"] [data-baseweb="radio"]:has(input:checked) { background: rgba(120, 224, 212, 0.18); }
 
 footer {
     visibility: hidden;
@@ -676,7 +725,6 @@ def page_header(title: str, subtitle: str, icon: str = "◈", badge: Optional[st
         f"""
         <div class="page-header-wrap">
             <div class="page-header-left">
-                <div class="page-icon-badge">{icon}</div>
                 <div>
                     <div class="hero-title">{title}</div>
                     <div class="hero-sub">{subtitle}</div>
@@ -980,12 +1028,12 @@ with st.sidebar:
     )
 
     nav_labels = {
-        "⌂  Dashboard": "Dashboard",
-        "▤  Dataset": "Dataset",
-        "⌘  Model CNN": "Model CNN",
-        "◈  Model Multimodal": "Model Multimodal",
-        "▥  Evaluation": "Evaluation",
-        "ⓘ  About": "About",
+        ":material/dashboard:  Dashboard": "Dashboard",
+        ":material/database:  Dataset": "Dataset",
+        ":material/model_training:  Model CNN": "Model CNN",
+        ":material/account_tree:  Model Multimodal": "Model Multimodal",
+        ":material/monitoring:  Evaluation": "Evaluation",
+        ":material/info:  About": "About",
     }
     selected_nav = st.radio(
         "NAVIGATION",
@@ -997,87 +1045,6 @@ with st.sidebar:
     page = nav_labels[selected_nav]
 
     st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-input-card">', unsafe_allow_html=True)
-    st.markdown(
-        """
-        <div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
-            <span style="font-size:20px">▣</span>
-            <div>
-                <div class="sidebar-section-title">Input Data Manual</div>
-                <div class="sidebar-hint">Tambah citra lesi & metadata ke SQLite.</div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    if st.session_state.sidebar_feedback:
-        kind, msg = st.session_state.sidebar_feedback
-        if kind == "success":
-            st.success(msg)
-        else:
-            st.error(msg)
-        st.session_state.sidebar_feedback = None
-
-    with st.form("sidebar_manual_input", clear_on_submit=True):
-        uploaded_lesion = st.file_uploader(
-            "Upload Citra Lesi *",
-            type=["jpg", "jpeg", "png"],
-            help="Format JPG/JPEG/PNG, maksimal 10 MB.",
-            key="sb_upload",
-        )
-        age_input = st.text_input("Usia (tahun)", placeholder="Contoh: 45", key="sb_age")
-        sex_input = st.selectbox("Jenis Kelamin", ["Pilih...", "Female", "Male"], key="sb_sex")
-        site_input = st.selectbox(
-            "Lokasi Anatomi",
-            [
-                "Pilih...", "Head/Neck", "Anterior torso", "Posterior torso",
-                "Lateral torso", "Upper extremity", "Lower extremity",
-                "Palms/Soles", "Oral/Genital", "Other",
-            ],
-            key="sb_site",
-        )
-        diagnosis_input = st.selectbox(
-            "Diagnosis (Label) *",
-            ["Pilih...", "MEL", "NV", "BCC"],
-            format_func=lambda x: "Pilih... (MEL / NV / BCC)" if x == "Pilih..." else f"{x} — {CLASS_NAMES[x]}",
-            key="sb_diagnosis",
-        )
-        save_manual = st.form_submit_button("＋  Simpan Data", type="primary", use_container_width=True)
-
-    if save_manual:
-        validation_errors = []
-        if uploaded_lesion is None:
-            validation_errors.append("Pilih gambar lesi terlebih dahulu.")
-        if diagnosis_input == "Pilih...":
-            validation_errors.append("Pilih label diagnosis MEL, NV, atau BCC.")
-        if age_input.strip() and (not age_input.strip().isdigit() or not 0 <= int(age_input.strip()) <= 120):
-            validation_errors.append("Usia harus berupa angka 0–120.")
-        if uploaded_lesion is not None and uploaded_lesion.size > 10 * 1024 * 1024:
-            validation_errors.append("Ukuran gambar maksimal 10 MB.")
-
-        if validation_errors:
-            st.session_state.sidebar_feedback = ("error", " · ".join(validation_errors))
-            st.rerun()
-        else:
-            try:
-                new_id = save_manual_record(
-                    uploaded_lesion,
-                    int(age_input) if age_input.strip() else "",
-                    None if sex_input == "Pilih..." else sex_input,
-                    None if site_input == "Pilih..." else site_input,
-                    diagnosis_input,
-                )
-                st.session_state.sidebar_feedback = ("success", f"Tersimpan · {new_id}")
-                st.rerun()
-            except Exception as exc:
-                st.session_state.sidebar_feedback = ("error", f"Gagal menyimpan: {exc}")
-                st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
-
-    manual_count = get_manual_record_count()
     st.markdown("**Status Dataset & Model**")
     st.markdown(
         f"""
@@ -1085,7 +1052,6 @@ with st.sidebar:
             <div>● <b>{dataset_status()}</b></div>
             <div>CNN: <code>{st.session_state.model_status}</code></div>
             <div>Multimodal: <code>{st.session_state.mm_status}</code></div>
-            <div>Input manual: <b>{manual_count}</b> record</div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1099,7 +1065,6 @@ if page == "Dashboard":
     page_header(
         "Dashboard",
         "Ringkasan dataset ISIC 2019 dan status pengembangan model.",
-        "◈",
         badge=dataset_status(),
     )
     df = st.session_state.data_df
@@ -1139,7 +1104,6 @@ if page == "Dashboard":
                 <div class="kv-row"><span>CNN (EfficientNet-B0)</span><b>{st.session_state.model_status}</b></div>
                 <div class="kv-row"><span>Multimodal (Hybrid CNN-BiLSTM)</span><b>{st.session_state.mm_status}</b></div>
                 <div class="kv-row"><span>Split Dataset (70/15/15)</span><b>{"Tersedia" if st.session_state.split_df is not None else "Belum dibuat"}</b></div>
-                <div class="kv-row"><span>Data Input Manual</span><b>{manual_count} record</b></div>
                 """,
                 unsafe_allow_html=True,
             )
@@ -1153,17 +1117,16 @@ elif page == "Dataset":
     page_header(
         "Dataset Explorer",
         "Eksplorasi dataset ISIC 2019 untuk tiga kelas (MEL, NV, BCC) beserta metadata klinis.",
-        "▤",
         badge=dataset_status(),
     )
     t_overview, t_viewer, t_metadata, t_pre = st.tabs(
-        ["▥ Overview", "▧ Data Viewer", "▦ Metadata", "⚙ Preprocessing"]
+        [":material/bar_chart: Overview", ":material/table_rows: Data Viewer", ":material/fact_check: Metadata", ":material/tune: Preprocessing"]
     )
 
     with t_overview:
         left, mid, chart, samples = st.columns([1.08, 1.05, 1.18, 1.32], gap="medium")
         with left:
-            st.markdown('<div class="panel"><div class="panel-title">▰ Pilih & Muat Dataset</div>', unsafe_allow_html=True)
+            st.markdown('<div class="panel"><div class="panel-title">Pilih & Muat Dataset</div>', unsafe_allow_html=True)
             source = st.radio(
                 "Sumber dataset",
                 ["ISIC 2019 (3 Kelas)", "Upload Dataset (CSV)"],
@@ -1215,7 +1178,7 @@ elif page == "Dataset":
 
         df = st.session_state.data_df
         with mid:
-            st.markdown('<div class="panel"><div class="panel-title">ⓘ Ringkasan Dataset</div>', unsafe_allow_html=True)
+            st.markdown('<div class="panel"><div class="panel-title">Ringkasan Dataset</div>', unsafe_allow_html=True)
             if df is not None:
                 total = len(df)
                 train_n, val_n = round(total * 0.70), round(total * 0.15)
@@ -1242,7 +1205,7 @@ elif page == "Dataset":
             st.markdown("</div>", unsafe_allow_html=True)
 
         with chart:
-            st.markdown('<div class="panel"><div class="panel-title">▥ Distribusi Kelas</div>', unsafe_allow_html=True)
+            st.markdown('<div class="panel"><div class="panel-title">Distribusi Kelas</div>', unsafe_allow_html=True)
             if df is not None:
                 display_distribution(df, height=250)
             else:
@@ -1272,7 +1235,7 @@ elif page == "Dataset":
             st.markdown("</div>", unsafe_allow_html=True)
 
         with samples:
-            st.markdown('<div class="panel"><div class="panel-title">▣ Contoh Citra per Kelas</div>', unsafe_allow_html=True)
+            st.markdown('<div class="panel"><div class="panel-title">Contoh Citra per Kelas</div>', unsafe_allow_html=True)
             if df is not None:
                 cols = st.columns(3, gap="small")
                 for i, cls in enumerate(CLASS_ORDER):
@@ -1297,7 +1260,7 @@ elif page == "Dataset":
         cnn_col, meta_col = st.columns([1.12, 1.0], gap="medium")
         with cnn_col:
             st.markdown(
-                '<div class="panel"><div class="panel-title">◉ Model CNN – EfficientNet-B0</div>'
+                '<div class="panel"><div class="panel-title">Model CNN – EfficientNet-B0</div>'
                 '<div class="panel-caption">Klasifikasi citra lesi kulit menggunakan EfficientNet-B0 sebagai backbone.</div>',
                 unsafe_allow_html=True,
             )
@@ -1333,7 +1296,7 @@ elif page == "Dataset":
 
         with meta_col:
             st.markdown(
-                '<div class="panel"><div class="panel-title">▤ Simulasi Missing Metadata</div>'
+                '<div class="panel"><div class="panel-title">Simulasi Missing Metadata</div>'
                 '<div class="panel-caption">Atur persentase metadata yang dihilangkan untuk menguji ketahanan model multimodal.</div>',
                 unsafe_allow_html=True,
             )
@@ -1384,6 +1347,16 @@ elif page == "Dataset":
         df = st.session_state.data_df
         if df is None:
             st.info("Muat dataset terlebih dahulu pada tab **Overview**.")
+            st.markdown('<div class="panel"><div class="panel-title">Tampilan setelah dataset dimuat</div></div>', unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame({
+                "image": ["ISIC_xxxxxxx", "ISIC_xxxxxxx"],
+                "diagnosis": ["MEL", "NV"],
+                "age": [55, 40],
+                "sex": ["female", "male"],
+                "site": ["anterior torso", "upper extremity"],
+                "lesion_id": ["BCN_xxxxx", "HAM_xxxxx"],
+            }), use_container_width=True, hide_index=True)
+            st.caption("Contoh format baris (bukan data asli). Tab ini menyediakan filter kelas, pencarian Image ID, dan pratinjau citra.")
         else:
             f1, f2 = st.columns(2, gap="medium")
             with f1:
@@ -1414,28 +1387,19 @@ elif page == "Dataset":
                     st.warning("File gambar tidak ditemukan. Periksa path folder gambar.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown('<div class="panel"><div class="panel-title">Data Tambahan dari Input Data Manual (SQLite)</div>', unsafe_allow_html=True)
-        with sqlite3.connect(MANUAL_DB) as conn:
-            manual_df = pd.read_sql_query(
-                "SELECT record_id, created_at, age, sex, site, diagnosis FROM manual_records ORDER BY created_at DESC",
-                conn,
-            )
-        if manual_df.empty:
-            st.caption("Belum ada data manual yang disimpan melalui sidebar.")
-        else:
-            st.dataframe(manual_df, use_container_width=True, hide_index=True)
-            st.download_button(
-                "Download data manual (CSV)",
-                manual_df.to_csv(index=False).encode("utf-8"),
-                "dermasense_manual_records.csv",
-                "text/csv",
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with t_metadata:
         df = st.session_state.data_df
         if df is None:
             st.info("Muat dataset terlebih dahulu pada tab **Overview**.")
+            st.markdown('<div class="panel"><div class="panel-title">Metadata klinis yang dipakai</div></div>', unsafe_allow_html=True)
+            st.dataframe(pd.DataFrame([
+                ("age_approx", "age", "Numerik (tahun)", "Nilai kosong diisi median data train, lalu z-score, plus penanda hilang"),
+                ("sex", "sex", "Kategorikal (Female / Male)", "One-hot plus penanda hilang"),
+                ("anatom_site_general", "site", "Kategorikal (9 lokasi)", "One-hot plus penanda hilang"),
+                ("lesion_id", "lesion_id", "ID lesi", "Dipakai untuk mengelompokkan split, bukan fitur model"),
+            ], columns=["Kolom CSV", "Nama di aplikasi", "Tipe", "Perlakuan"]), use_container_width=True, hide_index=True)
+            st.caption("Vektor metadata model multimodal berisi 15 nilai: 1 usia, 2 jenis kelamin, 9 lokasi, dan 3 penanda hilang.")
         else:
             st.markdown('<div class="panel"><div class="panel-title">Kelengkapan Metadata Klinis</div>', unsafe_allow_html=True)
             fields = [c for c in ["age", "sex", "site"] if c in df.columns]
@@ -1509,7 +1473,6 @@ elif page == "Model CNN":
     page_header(
         "Model CNN – EfficientNet-B0",
         "Training model klasifikasi citra lesi kulit untuk MEL, NV, dan BCC.",
-        "◉",
         badge=st.session_state.model_status,
     )
     if not TORCH_AVAILABLE:
@@ -1517,6 +1480,16 @@ elif page == "Model CNN":
     df = st.session_state.data_df
     if df is None:
         st.warning("Muat dataset ISIC 2019 terlebih dahulu melalui menu **Dataset**.")
+        st.markdown('<div class="panel"><div class="panel-title">Ringkasan Model</div></div>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame([
+            ("Backbone", "EfficientNet-B0, pretrained ImageNet"),
+            ("Input", "224 × 224 RGB, normalisasi mean/std ImageNet"),
+            ("Augmentasi (train)", "Flip horizontal/vertikal, rotasi 15°, color jitter"),
+            ("Loss", "Cross-entropy berbobot kelas (dihitung dari data train)"),
+            ("Optimizer", "AdamW (weight decay 1e-4), ReduceLROnPlateau"),
+            ("Default", "10 epoch, batch 16, learning rate 1e-4"),
+            ("Seleksi model", "Macro-F1 validasi terbaik"),
+        ], columns=["Komponen", "Keterangan"]), use_container_width=True, hide_index=True)
     else:
         c1, c2 = st.columns([1.1, 1.0], gap="medium")
         with c1:
@@ -1561,7 +1534,7 @@ elif page == "Model CNN":
             if missing_files:
                 st.warning(f"Tidak menemukan sebagian file gambar di folder: `{image_dir}`. Contoh ID: {missing_files[:3]}")
 
-            if st.button("▶ Train Model", type="primary", use_container_width=True, disabled=not TORCH_AVAILABLE):
+            if st.button(":material/play_arrow: Train Model", type="primary", use_container_width=True, disabled=not TORCH_AVAILABLE):
                 if not SKLEARN_AVAILABLE:
                     st.error("scikit-learn belum terpasang.")
                 else:
@@ -1610,7 +1583,6 @@ elif page == "Model Multimodal":
     page_header(
         "Model Multimodal (Hybrid CNN-BiLSTM)",
         "Training dan simulasi missing metadata untuk klasifikasi MEL, NV, dan BCC.",
-        "▱",
         badge=st.session_state.mm_status,
     )
     if not (TORCH_AVAILABLE and MULTIMODAL_LSTM_AVAILABLE):
@@ -1618,6 +1590,14 @@ elif page == "Model Multimodal":
     df = st.session_state.data_df
     if df is None:
         st.warning("Muat dataset ISIC 2019 terlebih dahulu melalui menu **Dataset**.")
+        st.markdown('<div class="panel"><div class="panel-title">Ringkasan Model Multimodal</div></div>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame([
+            ("Branch citra", "EfficientNet-B0, peta fitur 7×7 dibaca sebagai 49 langkah urutan, lalu BiLSTM"),
+            ("Branch metadata", "Usia, jenis kelamin, lokasi anatomi, dan penanda hilang, diproses MLP"),
+            ("Fusi", "Concatenation fitur citra dan metadata, Dense, Softmax 3 kelas"),
+            ("Simulasi missing", "Metadata disembunyikan pada tingkat 0, 25, 50, 75, atau 100%"),
+            ("Pelatihan", "Loss, optimizer, dan seleksi model sama dengan model CNN"),
+        ], columns=["Komponen", "Keterangan"]), use_container_width=True, hide_index=True)
     else:
         c1, c2 = st.columns([1.1, 1.0], gap="medium")
         with c1:
@@ -1664,7 +1644,7 @@ elif page == "Model Multimodal":
 
         split_df = st.session_state.split_df
         if split_df is not None:
-            if st.button("▶ Train Hybrid CNN-BiLSTM Multimodal", type="primary", use_container_width=True):
+            if st.button(":material/play_arrow: Train Hybrid CNN-BiLSTM Multimodal", type="primary", use_container_width=True):
                 if not SKLEARN_AVAILABLE:
                     st.error("scikit-learn belum terpasang.")
                 elif not MULTIMODAL_LSTM_AVAILABLE:
@@ -1738,12 +1718,20 @@ elif page == "Evaluation":
     page_header(
         "Evaluasi Model",
         "Evaluasi model pada data testing yang tidak digunakan selama training.",
-        "▥",
     )
     if st.session_state.split_df is None:
         st.warning("Split dataset belum tersedia. Buat split pada menu **Dataset** atau **Model CNN**.")
+        st.markdown('<div class="panel"><div class="panel-title">Metrik yang akan ditampilkan</div></div>', unsafe_allow_html=True)
+        st.dataframe(pd.DataFrame([
+            ("Accuracy", "Proporsi prediksi benar"),
+            ("Macro-F1", "Rata-rata F1 tiap kelas, metrik utama karena kelas tidak seimbang"),
+            ("Precision / Recall", "Rata-rata makro per kelas"),
+            ("Confusion matrix", "Sebaran prediksi terhadap label asli"),
+            ("ROC-AUC (OvR)", "Kemampuan membedakan tiap kelas dari sisanya"),
+            ("Uji missing metadata", "Model multimodal diuji pada 0, 25, 50, 75, dan 100% metadata hilang"),
+        ], columns=["Metrik", "Keterangan"]), use_container_width=True, hide_index=True)
     else:
-        eval_tabs = st.tabs(["◉ Model CNN (EfficientNet-B0)", "▱ Model Multimodal (Hybrid CNN-BiLSTM)"])
+        eval_tabs = st.tabs([":material/image: Model CNN (EfficientNet-B0)", ":material/account_tree: Model Multimodal (Hybrid CNN-BiLSTM)"])
 
         with eval_tabs[0]:
             if st.session_state.trained_model is None:
@@ -1794,6 +1782,41 @@ elif page == "Evaluation":
                 if st.session_state.mm_eval_result:
                     render_eval_dashboard(st.session_state.mm_eval_result, "Hybrid CNN-BiLSTM")
 
+                st.markdown('<div class="panel"><div class="panel-title">Uji Ketahanan terhadap Missing Metadata</div></div>', unsafe_allow_html=True)
+                st.caption("Model terlatih yang sama diuji pada missing rate 0, 25, 50, 75, dan 100%.")
+                rob_fn = getattr(mm_lstm, "evaluate_multimodal_hybrid", None) if mm_lstm else None
+                if st.button("Jalankan uji semua missing rate", key="btn_eval_mm_rob", disabled=not callable(rob_fn)):
+                    rob_rows = []
+                    try:
+                        with st.spinner("Menguji model pada 5 skenario missing metadata..."):
+                            for rate in [0, 25, 50, 75, 100]:
+                                res = rob_fn(
+                                    st.session_state.mm_model,
+                                    st.session_state.mm_prep,
+                                    st.session_state.split_df,
+                                    st.session_state.image_dir,
+                                    missing_rate=rate,
+                                )
+                                rob_rows.append({
+                                    "Missing rate (%)": rate,
+                                    "Accuracy": res["accuracy"],
+                                    "Macro-F1": res["macro_f1"],
+                                    "Precision": res["precision"],
+                                    "Recall": res["recall"],
+                                })
+                        st.session_state["mm_rob_df"] = pd.DataFrame(rob_rows)
+                        st.session_state["mm_rob_for"] = id(st.session_state.mm_model)
+                    except Exception as e:
+                        st.error(f"Uji ketahanan gagal: {e}")
+                rob_df = st.session_state.get("mm_rob_df")
+                if rob_df is not None and st.session_state.get("mm_rob_for") == id(st.session_state.mm_model):
+                    fig = px.line(rob_df, x="Missing rate (%)", y=["Accuracy", "Macro-F1"], markers=True)
+                    fig.update_layout(height=320, margin=dict(l=8, r=8, t=16, b=8), yaxis_range=[0, 1],
+                                      yaxis_title="Skor", legend_title_text="")
+                    fig.update_xaxes(tickvals=[0, 25, 50, 75, 100])
+                    st.plotly_chart(fig, use_container_width=True)
+                    st.dataframe(rob_df.round(4), use_container_width=True, hide_index=True)
+
 # ============================================================
 # ABOUT
 # ============================================================
@@ -1801,7 +1824,6 @@ else:
     page_header(
         "About & Methods",
         "Informasi penelitian dan batasan sistem DermaSense.",
-        "ⓘ",
     )
     st.markdown(
         """
