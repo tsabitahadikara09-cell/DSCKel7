@@ -32,10 +32,20 @@ page = st.sidebar.radio("Navigasi", [
     "Enhancement", "Hair Removal", "Grayscale", "Training (CNN)", "Evaluation"
 ])
 st.sidebar.divider()
+
 st.sidebar.subheader("Dataset Configuration")
-images_dir = st.sidebar.text_input("Folder gambar", value="dataset/images")
-csv_path = st.sidebar.text_input("Ground Truth CSV", value="dataset/ISIC2018_Task3_Training_GroundTruth.csv")
-if st.sidebar.button("🔄 Refresh Dataset", use_container_width=True):
+
+images_dir = st.sidebar.text_input(
+    "Folder gambar",
+    value=r"D:\DSC FP\ISIC2018_Task3_Training_Input"
+)
+
+csv_path = st.sidebar.text_input(
+    "Ground Truth CSV",
+    value=r"D:\DSC FP\ISIC2018_Task3_Training_GroundTruth.csv"
+)
+
+if st.sidebar.button("Refresh Dataset"):
     st.cache_data.clear()
 
 @st.cache_data(show_spinner="Membaca dataset dan label...")
