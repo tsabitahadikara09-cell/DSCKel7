@@ -1075,9 +1075,13 @@ elif menu == "Filtering":
                     use_container_width=True
                 )
 
-            st.caption(
-                f"{row['image_id']} | {CLASS_NAMES[selected_class]}"
-            )
+            img_array = np.array(image)
+
+st.caption(
+    f"ID: {row['image_id']} • "
+    f"Kelas: {CLASS_INFO[selected_class][0]} • "
+    f"Resolusi: {img_array.shape[1]} × {img_array.shape[0]}"
+)
 
 
 # ============================================================
