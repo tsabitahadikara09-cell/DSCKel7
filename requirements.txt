@@ -1,8 +1,8 @@
-streamlit>=1.36
-pandas>=2.1
-numpy>=1.26
-Pillow>=10.0
-plotly>=5.20
-scikit-learn>=1.4
-torch>=2.2
-torchvision>=0.17
+streamlit
+pandas
+numpy
+Pillow
+matplotlib
+opencv-python-headless
+scikit-learn
+tensorflow
