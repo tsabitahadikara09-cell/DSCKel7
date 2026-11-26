@@ -1,10 +1,10 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from modules.dataset import load_dataset_index, class_summary, sample_image
-from modules.preprocessing import preprocess_image, METHOD_DESCRIPTIONS
-from modules.training import train_model
-from modules.evaluation import evaluate_model
+from dataset import load_dataset_index, class_summary, sample_image
+from preprocessing import preprocess_image, METHOD_DESCRIPTIONS
+from training import train_model
+from evaluation import evaluate_model
 
 st.set_page_config(page_title="DermaCNN | ISIC 2018", page_icon="🧬", layout="wide")
 
