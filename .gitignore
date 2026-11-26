@@ -1,8 +1,12 @@
 __pycache__/
-.venv/
 *.pyc
-data/*
-!data/.gitkeep
-models/*
-!models/.gitkeep
+.venv/
+venv/
+.env
 .streamlit/secrets.toml
+dataset/*
+!dataset/README.md
+saved_models/
+*.h5
+*.keras
+*.zip
