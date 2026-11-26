@@ -100,9 +100,8 @@ APP_DIR = Path(__file__).resolve().parent
 
 PROJECT_DIR = APP_DIR.parent
 
-IMAGE_DIR = PROJECT_DIR / "ISIC2018_Task3_Training_Input"
-
-GT_DIR = PROJECT_DIR / "ISIC2018_Task3_Training_GroundTruth"
+IMAGE_DIR = r"D:\DSC FP\ISIC2018_Task3_Training_Input"
+CSV_PATH = r"D:\DSC FP\ISIC2018_Task3_Training_GroundTruth\ISIC2018_Task3_Training_GroundTruth.csv"
 
 # ============================================================
 # CLASS CONFIGURATION
