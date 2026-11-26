@@ -1,8 +1,8 @@
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score
-from modules.preprocessing import preprocess_image
-from modules.dataset import sample_image
+from preprocessing import preprocess_image
+from dataset import sample_image
 
 def train_model(df, method, epochs, batch_size, img_size, limit_per_class=0):
     # TensorFlow is imported only when training is requested.
