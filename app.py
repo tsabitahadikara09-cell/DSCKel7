@@ -1,225 +1,253 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-from pathlib import Path
 from PIL import Image
 
-from modules.dataset import IMAGE_DIR, CSV_PATH, load_dataset_index, class_summary, sample_image
-from modules.preprocessing import preprocess_image, METHOD_DESCRIPTIONS
+from modules.dataset import (
+    CLASS_CODES, IMAGE_DIR, CSV_PATH, load_dataset_index, class_summary, sample_image
+)
+from modules.metadata import build_metadata
+from modules.preprocessing import (
+    METHOD_DESCRIPTIONS, preprocess_image, remove_hair
+)
 from modules.training import train_model, MODEL_PATH
 from modules.evaluation import evaluate_model
 
 st.set_page_config(page_title="DermaCNN | ISIC 2018", page_icon="🧬", layout="wide")
-
-st.markdown("""<style>
-.stApp{background:#111019;color:#f3efff}.block-container{padding-top:1.3rem}
-[data-testid='stSidebar']{background:#191521}.metric-card{background:#211d2b;border:1px solid #393243;padding:18px;border-radius:14px}
-div.stButton>button{border-radius:10px}h1,h2,h3{color:#f4efff}
-</style>""", unsafe_allow_html=True)
-
+st.markdown("""
+<style>
+.stApp{background:#111019;color:#f3efff}
+.block-container{padding-top:1.2rem}
+[data-testid='stSidebar']{background:#191521}
+h1,h2,h3{color:#f4efff}
+</style>
+""", unsafe_allow_html=True)
 
 @st.cache_data(show_spinner=False)
-def get_data():
+def get_dataset():
     return load_dataset_index()
 
-df, dataset_error = get_data()
+df, dataset_error = get_dataset()
 counts = class_summary(df)
 
+PAGES = [
+    "Home", "Dataset", "Metadata Dataset", "Filtering",
+    "Segmentation & Masking", "Enhancement", "Hair Removal",
+    "Grayscale", "Training (CNN)", "Evaluation"
+]
 
-
-def show_image(image, caption=None):
+def show_image(image, caption):
     if image is not None:
         st.image(image, caption=caption, use_container_width=True)
 
-
-
-def sidebar():
-    st.sidebar.markdown("# 🧬 DermaCNN")
-    st.sidebar.caption("Skin Lesion Classification | ISIC 2018")
-    pages = ["Home", "Dataset", "Filtering", "Segmentation & Masking", "Enhancement", "Hair Removal", "Grayscale", "Training (CNN)", "Evaluation"]
-    page = st.sidebar.radio("Navigasi", pages, label_visibility="visible")
-    st.sidebar.divider()
-    st.sidebar.markdown("### Dataset Status")
-    if dataset_error:
-        st.sidebar.warning("Dataset belum terbaca")
-        st.sidebar.caption(dataset_error)
-    else:
-        st.sidebar.success(f"Dataset terbaca: {len(df):,} gambar")
-        st.sidebar.caption(f"Kelas terdeteksi: {df.label.nunique()} / 3")
-    if st.sidebar.button("🔄 Refresh Dataset", use_container_width=True):
-        get_data.clear()
-        st.rerun()
-    st.sidebar.divider()
-    st.sidebar.caption("DermaCNN | Biomedical Deep Learning Project")
-    st.sidebar.caption("ISIC 2018 • MEL • NV • BKL")
-    return page
-
-
-page = sidebar()
-
+def choose_image():
+    if dataset_error or df.empty:
+        st.error(dataset_error or "Dataset kosong.")
+        return None, None
+    label = st.selectbox("Pilih kelas", CLASS_CODES)
+    subset = df[df["label"] == label]
+    if subset.empty:
+        st.warning(f"Belum ada gambar untuk kelas {label}.")
+        return None, None
+    idx = st.selectbox(
+        "Pilih gambar",
+        range(len(subset)),
+        format_func=lambda i: subset.iloc[i]["image_id"]
+    )
+    row = subset.iloc[idx]
+    try:
+        return Image.open(row["path"]).convert("RGB"), row
+    except Exception as exc:
+        st.error(f"Gambar gagal dibuka: {exc}")
+        return None, None
 
 def page_home():
     st.title("🧬 DermaCNN")
-    st.subheader("Skin Lesion Classification Dashboard")
-    st.write("Klasifikasi citra lesi kulit menggunakan dataset ISIC 2018 dan CNN. Dataset dibaca otomatis dari direktori lokal.")
+    st.subheader("Skin Lesion Classification | ISIC 2018")
+    st.write("Eksplorasi dataset, preprocessing citra, training CNN, dan evaluasi untuk kelas MEL, NV, dan BKL.")
     if dataset_error:
-        st.error(dataset_error)
-        st.info("Pastikan folder Training Input dan file Ground Truth tersedia pada lokasi path yang telah ditentukan di modules/dataset.py.")
-        return
+        st.warning(dataset_error)
+        st.info("Metadata CSV tetap dapat dilihat pada halaman Metadata Dataset. Untuk preprocessing dan CNN, file gambar harus tersedia.")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total Images", f"{len(df):,}")
-    c2.metric("Total Classes", df.label.nunique())
-    c3.metric("MEL", f"{counts['MEL']:,}")
-    c4.metric("NV", f"{counts['NV']:,}")
-    st.markdown("### Distribusi Kelas")
-    fig, ax = plt.subplots(figsize=(8, 4))
-    ax.bar(counts.keys(), counts.values())
-    ax.set_ylabel("Jumlah gambar")
-    ax.set_title("ISIC 2018 — MEL, NV, BKL")
-    st.pyplot(fig)
-    st.markdown("### Sampel Citra")
-    cols = st.columns(3)
-    for col, label in zip(cols, ["MEL", "NV", "BKL"]):
-        image, image_id = sample_image(df, label)
-        with col:
-            st.markdown(f"**{label}**")
-            show_image(image, image_id)
-
+    c1.metric("Gambar terbaca", len(df))
+    c2.metric("Kelas", sum(v > 0 for v in counts.values()))
+    c3.metric("MEL", counts["MEL"])
+    c4.metric("NV + BKL", counts["NV"] + counts["BKL"])
+    st.bar_chart(pd.DataFrame({"Jumlah": counts}))
+    st.caption(f"Folder gambar terdeteksi: {IMAGE_DIR}")
+    st.caption(f"Ground Truth CSV: {CSV_PATH if CSV_PATH else 'Tidak ditemukan'}")
 
 def page_dataset():
     st.title("📁 Dataset Explorer")
-    st.caption("ISIC 2018 — Training Dataset (kelas MEL, NV, BKL)")
-    if dataset_error:
-        st.warning("Dataset belum terbaca")
-        st.error(dataset_error)
-        st.info("Path dataset dan CSV sudah ditentukan otomatis di modules/dataset.py. Path laptop tidak akan tersedia pada Streamlit Cloud.")
+    if df.empty:
+        st.warning(dataset_error or "Tidak ada gambar.")
         return
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Total gambar", f"{len(df):,}")
-    c2.metric("Jumlah kelas", df.label.nunique())
-    c3.metric("MEL", f"{counts['MEL']:,}")
-    c4.metric("NV + BKL", f"{counts['NV'] + counts['BKL']:,}")
-    st.subheader("Distribusi Dataset")
-    chart_df = pd.DataFrame({"Kelas": list(counts.keys()), "Jumlah": list(counts.values())})
-    st.bar_chart(chart_df.set_index("Kelas"))
-    st.subheader("Contoh gambar per kelas")
+    c1.metric("Total gambar", len(df))
+    c2.metric("MEL", counts["MEL"])
+    c3.metric("NV", counts["NV"])
+    c4.metric("BKL", counts["BKL"])
+    st.subheader("Distribusi kelas")
+    st.bar_chart(pd.DataFrame({"Jumlah": counts}))
     cols = st.columns(3)
-    for col, label in zip(cols, ["MEL", "NV", "BKL"]):
-        img, imgid = sample_image(df, label)
+    for col, code in zip(cols, CLASS_CODES):
+        img, image_id = sample_image(df, code)
         with col:
-            st.markdown(f"**{label}**")
-            show_image(img, imgid)
-    with st.expander("Lihat indeks dataset"):
-        st.dataframe(df.head(100), use_container_width=True)
+            st.markdown(f"**{code} — {image_id or 'Belum ada sampel'}**")
+            show_image(img, code)
+    st.dataframe(df, use_container_width=True)
 
+def page_metadata():
+    st.title("🗂️ Metadata Dataset")
+    metadata, error = build_metadata()
+    if error:
+        st.error(error)
+        return
+    st.caption("Metadata label berasal dari CSV Ground Truth. Informasi ukuran dan format hanya tersedia jika file gambar ditemukan.")
+    a, b, c, d = st.columns(4)
+    a.metric("Total metadata", len(metadata))
+    b.metric("MEL", int((metadata.label == "MEL").sum()))
+    c.metric("NV", int((metadata.label == "NV").sum()))
+    d.metric("BKL", int((metadata.label == "BKL").sum()))
+    if "image_available" in metadata:
+        st.metric("File gambar tersedia", int(metadata.image_available.sum()))
+    query = st.text_input("Cari Image ID")
+    filtered = metadata
+    if query:
+        filtered = filtered[filtered.image_id.str.contains(query, case=False, na=False)]
+    selected_classes = st.multiselect("Filter kelas", CLASS_CODES, default=CLASS_CODES)
+    filtered = filtered[filtered.label.isin(selected_classes)]
+    st.dataframe(filtered, use_container_width=True, hide_index=True)
+    st.download_button(
+        "Download metadata CSV",
+        filtered.to_csv(index=False).encode("utf-8"),
+        "dermacnn_metadata.csv",
+        "text/csv"
+    )
 
-def page_preprocess(method):
+def page_preprocessing(method):
     st.title(method)
     st.write(METHOD_DESCRIPTIONS.get(method, "Pemrosesan citra."))
-    if dataset_error:
-        st.error(dataset_error)
+    image, row = choose_image()
+    if image is None:
         return
-    label = st.selectbox("Pilih kelas", ["MEL", "NV", "BKL"])
-    subset = df[df.label == label]
-    if subset.empty:
-        st.warning("Tidak ada gambar pada kelas ini.")
-        return
-    idx = st.slider("Pilih indeks gambar", 0, len(subset)-1, 0)
-    row = subset.iloc[idx]
-    original = Image.open(row.path).convert("RGB")
+    st.caption(f"Image ID: {row.image_id} • Class: {row.label}")
     kwargs = {}
     if method == "Filtering":
-        ftype = st.selectbox("Jenis filter", ["Median", "Gaussian"])
+        filter_type = st.selectbox("Jenis filter", ["Mean", "Median", "Gaussian"])
         kernel = st.slider("Kernel size", 3, 15, 5, step=2)
-        kwargs.update(filter_type=ftype, kernel=kernel)
+        kwargs.update(filter_type=filter_type, kernel=kernel)
     elif method == "Enhancement":
         kwargs["clip_limit"] = st.slider("Contrast limit", 1.0, 5.0, 2.0, 0.5)
-    result = preprocess_image(original, method, **kwargs)
-    st.caption(f"Image ID: {row.image_id} • Class: {row.label}")
-    if isinstance(result, tuple):
-        processed, mask = result
+    elif method == "Hair Removal":
+        kwargs["kernel_size"] = st.slider("Black-hat kernel", 9, 31, 17, step=2)
+        kwargs["inpaint_radius"] = st.slider("Inpainting radius", 1, 7, 3)
+    result = preprocess_image(image, method, **kwargs)
+
+    if method == "Segmentation & Masking":
+        mask, segmented = result
         a, b, c = st.columns(3)
-        with a: show_image(original, "Original")
-        with b: show_image(processed, "Processed")
-        with c: show_image(mask, "Mask")
+        with a: show_image(image, "Original")
+        with b: show_image(mask, "Mask — lesi putih, background hitam")
+        with c: show_image(segmented, "Segmented")
+    elif method == "Hair Removal":
+        blackhat, mask, cleaned = result
+        a, b, c, d = st.columns(4)
+        with a: show_image(image, "Original")
+        with b: show_image(blackhat, "Black Hat")
+        with c: show_image(mask, "Hair Mask")
+        with d: show_image(cleaned, "Hair Removed")
     else:
         a, b = st.columns(2)
-        with a: show_image(original, "Original")
-        with b: show_image(result, method)
-
+        with a: show_image(image, "Original")
+        with b: show_image(result, "Filtered" if method == "Filtering" else method)
 
 def page_training():
     st.title("🧠 Training CNN")
-    st.write("Latih model CNN menggunakan tiga kelas: MEL, NV, dan BKL.")
-    if dataset_error:
-        st.error(dataset_error)
+    st.write("Training menggunakan tiga kelas: MEL, NV, dan BKL.")
+    if dataset_error or df.empty:
+        st.error(dataset_error or "Dataset gambar kosong.")
         return
     with st.form("training_config"):
-        method = st.selectbox("Metode preprocessing", ["Filtering", "Enhancement", "Grayscale"])
-        epochs = st.slider("Epoch", 1, 50, 10)
+        method = st.selectbox("Preprocessing", ["Original", "Filtering", "Enhancement", "Grayscale"])
+        epochs = st.slider("Epoch", 1, 30, 8)
         batch_size = st.selectbox("Batch size", [8, 16, 32], index=1)
-        image_size = st.selectbox("Image size", [128, 160, 224], index=2)
-        limit = st.number_input("Maksimum gambar per kelas (0 = semua)", min_value=0, max_value=5000, value=300, step=50)
+        image_size = st.selectbox("Image size", [96, 128, 160, 224], index=1)
+        limit = st.number_input("Maksimum gambar per kelas (0 = semua)", 0, 5000, 300, 50)
         start = st.form_submit_button("🚀 Mulai Training", type="primary")
     if start:
-        progress = st.progress(0)
-        status = st.empty()
-        status.info("Training berjalan. Untuk training yang panjang, proses mungkin memerlukan waktu.")
         try:
-            model, history, val_data, class_names = train_model(df, method, epochs, batch_size, image_size, int(limit), progress_callback=None)
-            progress.progress(100)
-            st.success(f"Training selesai. Model tersimpan: {MODEL_PATH}")
-            hist = history.history
-            st.subheader("Training Curves")
-            metrics = pd.DataFrame({k: v for k, v in hist.items()})
-            st.line_chart(metrics[[c for c in ["accuracy", "val_accuracy"] if c in metrics.columns]])
-            st.line_chart(metrics[[c for c in ["loss", "val_loss"] if c in metrics.columns]])
+            with st.spinner("Training CNN berjalan..."):
+                model, history, val_data, class_names = train_model(
+                    df, method, epochs, batch_size, image_size, int(limit)
+                )
             st.session_state["last_model"] = model
             st.session_state["val_data"] = val_data
             st.session_state["class_names"] = class_names
-            st.success("Model dan data validasi siap digunakan di halaman Evaluation.")
+            st.success(f"Training selesai. Model tersimpan di {MODEL_PATH}")
+            hist = pd.DataFrame(history.history)
+            if {"accuracy", "val_accuracy"}.issubset(hist.columns):
+                st.line_chart(hist[["accuracy", "val_accuracy"]])
+            if {"loss", "val_loss"}.issubset(hist.columns):
+                st.line_chart(hist[["loss", "val_loss"]])
         except Exception as exc:
-            st.error(f"Training gagal: {exc}")
-
+            st.exception(exc)
 
 def page_evaluation():
     st.title("📊 Evaluation")
     if "last_model" not in st.session_state or "val_data" not in st.session_state:
-        st.info("Jalankan Training terlebih dahulu agar data evaluasi tersedia.")
-        if MODEL_PATH.exists():
-            st.caption("Model tersimpan ditemukan, tetapi data validasi dari training sebelumnya tidak disimpan. Jalankan training ulang untuk evaluasi lengkap.")
+        st.info("Jalankan Training terlebih dahulu pada sesi aplikasi ini.")
         return
-    model = st.session_state["last_model"]
-    X_val, y_val = st.session_state["val_data"]
-    names = st.session_state.get("class_names", ["MEL", "NV", "BKL"])
     try:
-        results = evaluate_model(model, X_val, y_val, names)
-        st.metric("Accuracy", f"{results['accuracy']*100:.2f}%")
-        report = pd.DataFrame(results["report"]).T
+        x_val, y_val = st.session_state["val_data"]
+        names = st.session_state["class_names"]
+        result = evaluate_model(st.session_state["last_model"], x_val, y_val, names)
+        a, b, c, d = st.columns(4)
+        a.metric("Accuracy", f"{result['accuracy']*100:.2f}%")
+        b.metric("Precision", f"{result['precision']*100:.2f}%")
+        c.metric("Recall", f"{result['recall']*100:.2f}%")
+        d.metric("F1-score", f"{result['f1']*100:.2f}%")
+        report = pd.DataFrame(result["report"]).T
         st.subheader("Classification Report")
         st.dataframe(report, use_container_width=True)
         st.subheader("Confusion Matrix")
-        fig, ax = plt.subplots(figsize=(5, 4))
-        ax.imshow(results["confusion_matrix"])
+        fig, ax = plt.subplots(figsize=(6, 4))
+        ax.imshow(result["confusion_matrix"])
         ax.set_xticks(range(len(names)), names)
         ax.set_yticks(range(len(names)), names)
         ax.set_xlabel("Predicted")
         ax.set_ylabel("Actual")
         for i in range(len(names)):
             for j in range(len(names)):
-                ax.text(j, i, results["confusion_matrix"][i, j], ha="center", va="center")
+                ax.text(j, i, result["confusion_matrix"][i, j], ha="center", va="center")
         st.pyplot(fig)
-        st.download_button("Download report CSV", report.to_csv().encode("utf-8"), "classification_report.csv", "text/csv")
+        st.download_button("Download report CSV", report.to_csv().encode("utf-8"),
+                           "classification_report.csv", "text/csv")
     except Exception as exc:
-        st.error(f"Evaluasi gagal: {exc}")
+        st.exception(exc)
 
+page = st.sidebar.radio("Navigasi", PAGES)
+st.sidebar.divider()
+st.sidebar.markdown("### Dataset Status")
+if dataset_error:
+    st.sidebar.warning("Dataset belum lengkap")
+    st.sidebar.caption(dataset_error)
+else:
+    st.sidebar.success(f"{len(df):,} gambar terbaca")
+    st.sidebar.caption(f"Kelas: {df.label.nunique()} / 3")
+if st.sidebar.button("🔄 Refresh Dataset"):
+    get_dataset.clear()
+    st.rerun()
+st.sidebar.caption("DermaCNN • ISIC 2018 • MEL / NV / BKL")
 
 if page == "Home":
     page_home()
 elif page == "Dataset":
     page_dataset()
+elif page == "Metadata Dataset":
+    page_metadata()
 elif page in METHOD_DESCRIPTIONS:
-    page_preprocess(page)
+    page_preprocessing(page)
 elif page == "Training (CNN)":
     page_training()
 elif page == "Evaluation":
